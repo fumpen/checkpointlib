@@ -1,7 +1,6 @@
 #ifndef CHECKPOINT_HPP
 #define CHECKPOINT_HPP
 
-#include "checkpointTools.hpp"
 #include "memManager.hpp"
 
 #include <cstring>

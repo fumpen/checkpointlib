@@ -1,5 +1,5 @@
-#ifndef MEMMANAGER_HPP
-#define MEMMANAGER_HPP
+#ifndef MEMMANAGER2_HPP
+#define MEMMANAGER2_HPP
 
 #include <cstring>
 #include <stdlib.h>
@@ -27,33 +27,16 @@
 #include <mutex>
 
 #include <signal.h>
-void* _protected_mem_startAddr = 0;
-void* _protected_mem_stopAddr = 0;
 
 #include <chrono>
-std::chrono::milliseconds _PauseThreadCheckpoint(100); 
+//std::chrono::milliseconds _PauseThreadCheckpoint(100); 
 
 
-void segfault_sigaction(int signal, siginfo_t *si, void *arg){
-  (void) signal;
-  (void) arg;
-  if((_protected_mem_startAddr<=si->si_addr) && (si->si_addr <= _protected_mem_stopAddr)){
-    std::this_thread::sleep_for(_PauseThreadCheckpoint);
-  }else{
-    printf("\nCaught segfault outside protected memory area\n");
-    exit(0);
-  }     
-}
-
-
-void _save_checkpoint_gradually(std::mutex* lockCheck, std::uint8_t* barrier_flag,
-			       void* memAddr, size_t memSize, FileManager* FM){
-  lockCheck->lock();
+void _save_checkpoint_gradually2(void* memAddr, size_t memSize, FileManager* FM){
   size_t pSize = sysconf(_SC_PAGESIZE);
   int prot_status = mprotect(memAddr, memSize, PROT_READ);
   if(prot_status) printf("something wrong in mprot init\n");
-  *barrier_flag = 0; // set the threads free to compute, now that the mem-protection is set
-
+  
   size_t tmp_offset = 0;
   ssize_t tmp_write_ret;
   int fd = FM->save_checkpoint_fd();
@@ -79,11 +62,9 @@ void _save_checkpoint_gradually(std::mutex* lockCheck, std::uint8_t* barrier_fla
 
     FM->save_checkpoint_finalize_save(fd);
   }
-
-  lockCheck->unlock();
 }
   
-void _load_checkpoint(void* memAddr, size_t memSize,
+void _load_checkpoint2(void* memAddr, size_t memSize,
 		      FileManager* FM){  
   if(FM->load_checkpoint(memAddr, memSize)){
     printf("ERROR LOADING\n");
@@ -91,7 +72,7 @@ void _load_checkpoint(void* memAddr, size_t memSize,
 }
 
 
-class MemManager{
+class MemManager2{
 private:
   void* mm = 0;
   size_t tot_mem;
@@ -148,23 +129,14 @@ private:
     return sucess;
   }
 
-  void _register_segfault_handler(){
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(struct sigaction));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_sigaction = segfault_sigaction;
-    sa.sa_flags   = SA_SIGINFO;
-  
-    sigaction(SIGSEGV, &sa, NULL);
-  }
   
 public:
-  MemManager(std::string init_fileNameA, std::string init_fileNameB){
+  MemManager2(std::string init_fileNameA, std::string init_fileNameB){
     FileManager* FM = new FileManager(init_fileNameA,  init_fileNameB);
     this->file_manager = FM;
   }
 
-  ~MemManager(){    
+  ~MemManager2(){    
     if(this->mm != 0) munmap(this->mm, this->tot_mem);
     if(this->mem_logic != 0) delete this->mem_logic;
     if(this->file_manager != 0) delete this->file_manager;
@@ -184,7 +156,6 @@ public:
     }
   
     this->mem_logic = new FirstFit(this->mm, this->tot_mem);
-    this->_register_segfault_handler();
 
     return 0;
   }
@@ -201,15 +172,14 @@ public:
     return this->mem_logic->ff_free(addr);
   }
 
-  std::thread start_save_checkpoint(std::mutex* lockCheck, std::uint8_t* barrier_flag){
+  void start_save_checkpoint(){
 
-    std::thread th = std::thread(_save_checkpoint_gradually, lockCheck, barrier_flag,
-				 this->mm, this->tot_mem, this->file_manager);
-    return th;
+    _save_checkpoint_gradually2(this->mm, this->tot_mem,
+			       this->file_manager);
   }
 
   void start_load_checkpoint(){
-    _load_checkpoint(this->mm, this->tot_mem,
+    _load_checkpoint2(this->mm, this->tot_mem,
 		     this->file_manager);
   }
   
@@ -223,4 +193,4 @@ public:
 
 };
 
-#endif //MEMMANAGER_HPP
+#endif //MEMMANAGER2_HPP

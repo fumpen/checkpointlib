@@ -1,0 +1,330 @@
+Documentation for the C++ header-only library CheckpointLib. An application-level checkpointing library for Linux-based systems.
+
+CheckpointLib consists of the files: checkpoint.hpp, fileManager.hpp, first_fit.hpp and memManager.hpp and expects all files to be in the same directory.
+
+To use CheckpointLib, include the line: 
+	#include "checkpoint.hpp" 
+in the appliaction. While all public members and functions is declared in this doc, checkpointlib is only designed to be used via the classes defined in checkpoint.hpp 
+
+To compile a application using CheckpointLib using g++, if the application in question is "main.cpp" type the following: g++ -std=c++11 main.cpp -lpthread
+
+
+
+***fileManager.hpp:
+Designed to manage the two checkpoint files and largely implemented using linux system calls.
+
+->FileManager(std::string init_fileNameA, std::string init_fileNameB)
+Description:
+	Initiates an instance of the class "FileManager". It's objective is to manage the interactions with the file system.
+Arguments:
+	#init_fileNameA: either path and name of a file. If the file does not exist, a file will be created here later
+	#init_fileNameB: either path and name of a file. If the file does not exist, a file will be created here later. Should not be identical to init_fileNameA.
+Returns:
+	An instance of FileManager.
+	
+	
+->int initFileManager(std::size_t size)
+Description:
+	creates or expands the filepaths provided to FileManager. Adjust or creates a counter in each file to trach which one was written to the last time. This call will never shrink a file.
+Arguments:
+	#size: size (in bytes) that the files should be at least. 
+Returns:
+	zero on sucess, else -1.
+	
+->int expand_file(std::size_t new_size)
+Description:
+	Expands the filepaths provided to FielManager. This call will never shrink a file.
+Arguments:
+	#size: size (in bytes) that the files should be at least. 
+Returns:
+	zero on sucess, else -1. 
+	
+->int load_checkpoint(void* buff, std::size_t size)
+Description:
+	Reads the content of the file that has been written to most recently into memory.
+Arguments:
+	#size: size (in bytes) to read into buffer. 
+	#buff: buffer in memory of at least #size bytes. 
+Returns:
+	zero on sucess, else -1.
+	
+
+->int save_checkpoint_fd()
+Description:
+	Returns a file descriptor for the that of the two files that has the lowest counter.
+Arguments:
+Returns:
+	a file descriptor, else -1.
+	
+->int save_checkpoint_finalize_save(int fd)
+Description:
+	Closes a filedescriptor and increments the counter of that file. Meant to close a file descriptor returned by save_checkpoint_fd().
+Arguments:
+	#fd: a file descriptor 
+Returns:
+	Zero on sucess, else -1.
+	
+
+***first_fit.hpp:
+Implements the first-fit memory management approach in a pre-allocated buffer of memory.
+
+->FirstFit(void* buff_addr, std::size_t init_totalSize)
+Description:
+	Initiates the first-fit algorithm in the provided memory.
+Arguments:
+	#buff_addr: address pointing to the beginning of the allocated memory.
+	#init_totalSize: the size (in bytes) starting at #buff_addr that should be administrated by FirstFit.
+Returns:
+	An instance of FirstFit.
+	
+
+->void* ff_allocate(std::size_t alloc_size)
+Description:
+	allocates a chunk of the buffer.
+Arguments:
+	#alloc_size: The size (in bytes) to allocate from the buffer.
+Returns:
+	A pointer on sucess, else a null-pointer.
+	
+
+->int ff_free(void* freeMe)
+Description:
+	frees a chunk allocated by ff_allocate(), makeing it free to be reallocated, possibly as smaller chunke or as part of a even bigger allocation.
+Arguments:
+	#freeMe: The address pointing to the start of the allocation to be freed..
+Returns:
+	Zero on sucess, else -1.
+
+->int ff_adjust_allocation_size(std::size_t new_size)
+Description:
+	Adjust the FirstFit instance's perseption of the buffer size. This call is intended to make a runtime expansion of a existing memory mapping possible, but is in it's current state not very safe to call. 
+Arguments:
+	#new_size: the new size (in bytes) that the instance of FirstFit will percieve the buffer to have.
+Returns:
+	This function will always return Zero.
+	
+	
+***memManager.hpp:	
+Responsible for the allocation of memory along with the management of FileManager and FirstFit.
+
+!!!Globally defined variables and functions start !!!
+->void* _protected_mem_startAddr
+Descritption: 
+	Globally defined pointer defining the first address to be included in the segfault handler.
+
+->void* _protected_mem_stopAddr
+Descritption: 
+	Globally defined pointer defining the last address to be included in the segfault handler.
+
+->void segfault_sigaction(int signal, siginfo_t *si, void *arg)
+Description:
+	The function responsible for differentiating between segfaults in memory that CheckpointLib manages and any other segfault. If segfault happens in a address spanning between _protected_mem_startAddr and _protected_mem_stopAddr, the thread is put to sleep and afterwards returned to the line that caused the segfault. Otherwise the memory address that caused the segfault is printed and the entire process exits.  
+Arguments:
+	#signal: standart argumment required by <signal.h>. Is ignored. 
+	#*si: contains the address of memory that triggered the segfault.
+	#*arg: standart argumment required by <signal.h>. Is ignored. 
+Returns:
+	Nothing.
+
+
+->void _save_checkpoint_gradually(std::mutex* lockCheck, std::uint8_t* barrier_flag,
+			       void* memAddr, size_t memSize, FileManager* FM)
+Description:
+	This function writes a buffer of memory to a file dictated by FileManager. It imposes read protection on the buffer and lifts the restriction as the data is written(one system-defined page-size at a time).  
+Arguments:
+	#*lockCheck: A lock that is held to the end of execution, preventing threads from starting a new checkpoint as long as the old one is being written.
+	#*barrier_flag: Designed for the other threads to spin on this flag while the function sets up the initial read protection on the memory. The flag is set to zero when the buffer is protected.
+	#*memAddr: Start address of the buffer to be written to file.
+	#memSize: size (in bytes) of the buffer at #memAddr 
+	#*FM: pointer to a instance of FileManager. 
+Returns:
+	Nothing.
+
+
+void _load_checkpoint(void* memAddr, size_t memSize, FileManager* FM)
+Description:
+	This function is a wrapper for the FileManager function load_checkpoint().  
+Arguments:
+	#memAddr: start of buffer, passed to load_checkpoint().
+	#memSize: size of buffer(in bytes), passed to load_checkpoint()
+	#*FM: pointer to the FileManager that facilitates the read. 
+Returns:
+	Nothing.
+
+
+!!!Globally defined variables and functions stop !!!
+
+->MemManager(std::string init_fileNameA, std::string init_fileNameB)
+Description:
+	Creates the MemManager instance. MemManager acts as a wrapper for a instance of FileManager and FirstFit as well.  
+Arguments:
+	#init_fileNameA: argument passed to FileManager.
+	#init_fileNameB: argument passed to FileManager.
+Returns:
+	Instance of MemManager.
+
+
+->int initMemManager(std::size_t expected_size)
+Description:
+	Asserts and allocates memory, initiates FirstFit and acts as Wrapper for initFileManager().  
+Arguments:
+	#expected_size: The size of memory (in bytes) to allocate.
+Returns:
+	zero on sucess, -1 on failure.
+
+
+->void* allocate_memory(size_t requested_size)
+Description:
+	See ff_allocate()
+
+
+->int free_memory(void* addr)
+Description:
+	See ff_free()
+
+
+->std::thread start_save_checkpoint(std::mutex* lockCheck, std::uint8_t* barrier_flag)
+Description:
+	Starts a new thread, running the function _save_checkpoint_gradually(). passes the entire memory buffer MemManager manages along to the function as well as its instance of FileManager. 
+Arguments:
+	#*lockCheck: passed as argument to _save_checkpoint_gradually(). 
+	#barrier_flag: passed as argument to _save_checkpoint_gradually().
+Returns:
+	Returns the thread control object.
+
+->void start_load_checkpoint()
+Description:
+    see _load_checkpoint() (is called with arguments from the calling MemManager);
+
+
+->void* ret_mm()
+Description:
+	Returns pointer to beginning of allocated memory buffer. Included for unit testing.  
+Returns:
+	A pointer.
+
+->size_t ret_memSize()
+Description:
+	Returns size (in bytes) of allocated memory buffer. Included for unit testing.  
+Returns:
+	size of buffer.
+	
+	
+***checkpoint.hpp:
+The overall wrapper for the CheckpointLib.
+
+->CheckpointOrganizer(std::string init_fileNameA, std::string init_fileNameB)
+Description:
+	Initiates an instance of the class "CheckpointOrganizer".
+Arguments:
+	#init_fileNameA: passed as argument to memmManager().
+	#init_fileNameB: passed as argument to memmManager().
+Returns:
+	An instance of CheckpointOrganizer.
+
+
+->int initCheckpointOrganizer(std::uint8_t init_threadTotal, bool init_load_first, std::size_t expected_size)
+Description:
+	Primarily acts as a wrapper for initMemManager().
+Arguments:
+	#init_threadTotal: The number of threads this instance of CheckpointOrganizer expects to be initiated. 
+	#init_load_first: If true, the application will perform a restart at first checkpoint.
+	#expected_size: passed as argument  to initMemManager()
+Returns:
+	See initMemManager().
+	
+
+->std::thread* startThread(void (*f)(void *, Checkpoint*), void* init_data)
+Description:
+	Starts a thread that is able to be checkpointed by this instance of CheckpointOrganizer.
+Arguments:
+	#f: The function that is to run in the thread, note it must accept a instance of Checkpoint.
+	#*init_data: argument passed to #f.
+Returns:
+	Pointer to the control object of the thread.
+
+
+->int joinAll()
+Description:
+	Shortcut for joining all threads currently running that was initiated by startThread().
+Returns:
+	will always return 0.
+
+
+->void* check_alloc(size_t requested_size)
+Description:
+    See allocate_memory().
+
+
+->int check_free(void* addr)
+Description:
+    See free_memory().
+    
+    
+->Checkpoint(std::uint8_t init_threadTotal, std::uint8_t init_myId, std::mutex* init_lockCheck_in, std::mutex* init_lockCheck_out, std::uint8_t* init_barrier_flag_in, std::uint8_t* init_barrier_flag_out, bool* init_load_first, MemManager* init_mem)
+Description:
+	A new instance of Checkpoint is automatically initialized and passe along to threads started by startThread().
+Arguments:
+	#init_threadTotal: the amount of threads to wait for when barrier synchronizing.
+	#init_myId: A id for the thread.
+	#*init_lockCheck_in: part of the barrier synchronization.
+	#*init_lockCheck_out: part of the barrier synchronization.
+	#*init_barrier_flag_in: part of the barrier synchronization.
+	#*init_barrier_flag_out: part of the barrier synchronization. 
+	#*init_load_first: if true first checkpoint will act as restart.
+	#*init_mem: pointer to the shared memManager
+Returns:
+	Instance of the Checkpoint class.  
+
+
+->void check()
+Description:
+	Will synchronize all threads started by startThread(). Depending on the parameter "init_load_first" from Checkpoint(), this call either restarts the memory from a checkpoint file or makes a new write. Note that if "init_load_first" is set to true, after the first encounter with this call, it is set to false.
+Returns:
+	Nothing.  
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
