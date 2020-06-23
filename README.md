@@ -10,4 +10,6 @@ Unit tests for each component of the library is in tests/ (note here that a lot 
 
 The  benchmarks reprecented in the thesis is in benchmarks/
 
-Examples uf using checkpointlib is found in examples/
+Examples of using checkpointlib is found in examples/
+
+The master thesis report submitted with the library is found in main.pdf
