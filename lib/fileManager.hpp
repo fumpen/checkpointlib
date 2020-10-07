@@ -1,3 +1,7 @@
+/*! \file fileManager.hpp
+ * This file contains the FileManager class, which handles I/O operations for
+ * the checkpointlib.
+*/
 #ifndef FILEMANAGER_HPP
 #define FILEMANAGER_HPP
 #include <sys/types.h>
@@ -7,47 +11,54 @@
 
 #include <string>
 #include <cstring> //for strerror
-//#include <errno.h> // for errorno...
 
 
-/*
-  Handles Interactions with the filesystem. 
-  
-  undefined behavior if:
-  one or more save-file is deleted after FileManager initialization
-  the files in question exceeds what size can be represented as a std::ssize or off_t
-  if size increases this threshold, 
-  
-*/
+/*! \brief The FileManager class handles I/O along with managing and creating checkpoint files.
+ * Undefined behavior if:
+ * - One or more save-file is deleted after FileManager initialization.
+ * - The files in question exceeds what size can be represented as a std::ssize or off_t.
+ */
 class FileManager {
 private:
   typedef long long int llint;
   
-  std::string fileNameA;
-  std::string fileNameB;
-  std::string* newest_save;
-  std::string* oldest_save;
-  std::uint8_t sizeof_counter;
-  std::size_t checkpoint_save_counter;
-  
+  std::string fileNameA; //<! Path and filename of one of the files to be used as checkpoint-files (or to be created)
+  std::string fileNameB; //<! See fileNameA, should not be identical to fileNameA.
+  std::string* newest_save; //<! Points to either fileNameA or fileNameB. Tracks the newest checkpoint was written to.
+  std::string* oldest_save; //<! Points to either fileNameA or fileNameB. Tracks the oldest checkpoint was written to.
+  std::uint8_t sizeof_counter; //<! Denotes bytes needed to represent the offset to the next memory region in the file.
+  std::size_t checkpoint_save_counter; //<! Tracks the number of checkpoints taken in the current run.
+
+  /*! \brief checkpointlib's wrapper for perror().
+   \param err_msg Relevant additional error information to be displayed along with what perror() produces.
+   */
   void cpt_perror(std::string err_msg){
     std::string full_msg = "CheckpointLib-> " + err_msg;
     perror(full_msg.c_str());
   }
 
+  /*! \brief checkpointlib's wrapper for printf().
+     \param msg Information from checkpointlib to the user.
+  */
   void cpt_printf(std::string msg){
     std::string full_msg = "CheckpointLib-> " + msg + "\n";
     printf("%s", full_msg.c_str());
   }
 
-  // returns -1 on fail, 0 on sucess
+  /*! \brief Close the connection to a file.
+       \param fd Linux file descriptor.
+       \return 0 on success, -1 on error
+    */
   int closeFile(int fd){
     int ret = close(fd);
     if(ret) this->cpt_perror("err closing file");
     return ret;
   }
 
-  //return -1 on error
+  /*! \brief Determines size in bytes of a file.
+      \param fd Linux file descriptor.
+      \return file size on success, -1 on error
+   */
   llint ret_file_size(int fd){
     struct stat sb;
     int ret = fstat(fd, &sb);
@@ -58,6 +69,11 @@ private:
     return sb.st_size;
   }
 
+  /*! \brief Determines maximum size allowed for a file.
+   *  This is relevant because the Linux system calls used in this class is limited
+   *  by the to system-specific variables 'off_t' and 'ssize_t'
+      \return The maximum file size allowed for checkpoint-memory (in bytes).
+  */
   std::size_t max_size_allowed(){
     std::uint8_t* bytes = (std::uint8_t*)malloc(sizeof(std::size_t));
     std::uint8_t max_byte = 0xFF;
@@ -82,23 +98,48 @@ private:
   }
   
 public:
-  // do not shrink file size, it cannot be known if it increases later
+  /*! \brief Creates the FileManager class.
+     *  'initFileManager' must be run for this class to be usable.
+     \param init_fileNameA Name and location of the first checkpoint file.
+     \param init_fileNameB Name and location of the second checkpoint file.
+     \return The maximum file size allowed for checkpoint-memory (in bytes).
+    */
   FileManager(std::string init_fileNameA, std::string init_fileNameB){
     this->fileNameA = init_fileNameA;
     this->fileNameB = init_fileNameB;
     this->sizeof_counter = sizeof(std::size_t);
   }
 
+  /*! \brief Reads a number of bytes from a file given a certain offset.
+   * If the provided buff does not have at least count bytes allocated, behavior is undefined.
+   \param fd Linux file descriptor.
+   \param buf Address at which to read the bytes into.
+   \param count Number of bytes to read.
+   \param offset The offset into the file at which to start reading count bytes from. e.g offset==0 means 'read from the beginning of the file'
+   \return Number of bytes read, on error -1.
+  */
   llint fm_read(int fd, void *buf, size_t count, size_t offset){
     lseek(fd, offset, SEEK_SET);
     return read(fd, buf, count);
   }
 
-  //creates/expands files, sets count and new/old pointers. Returns 0 on sucess
+  /*! \brief Allocates the checkpoint-files and runs general sanity-checks.
+     * In case there's no files pointed to by fileNameA or fileNameB two new checkpoint-files is allocated.
+     * In case there is one or two existing files, but the process does not have read/write access to them,
+     * that/those files are deleted and recreated with read and write rights set.
+     * In case both files are valid checkpoints, their individual counter is set to zero and one, with the
+     * higher one being the one that held the highest count of the two.
+     * In case fileNameA or fileNameB points to a file that is smaller that size, they are expanded (the
+     * extra memory is added at the end of the file).
+     * In case fileNameA or fileNameB points to a file that is larger than size, they are not shrunk, but
+     * the excess space is not utilized.
+     \param size The amount of bytes that each checkpoint-file must at least be able to contain.
+     \return 0 on success, -1 on error.
+    */
   int initFileManager(std::size_t size){
     std::size_t size_w_counter = size + this->sizeof_counter;
     if(this->max_size_allowed() < size_w_counter){
-      this->cpt_printf("requested size exeeds MAX supported size");
+      this->cpt_printf("requested size exceeds MAX supported size");
       return -1;
     }
     
@@ -183,7 +224,6 @@ public:
     std::size_t new_count;
     int new_fd;
     int old_fd;
-    //printf("fd1: %lu, fd2: %lu\n", counter_1, counter_2);
     if(counter_1 >= counter_2){
       new_fd = fd1;
       old_fd = fd2;
@@ -224,10 +264,14 @@ public:
     return 0;
   }
 
-  /* if current file-size is found to be smaller than new_size, expand file to 
-     new_size. If file-size >= current size, it does nothing.
-     return: 0 on sucess, -1 on failure.
-   */  
+
+  /*! \brief Expands existing checkpoint-files.
+   * Expands fileA and fileB to the requested size.
+   * If the requested size is less that the current size of one/both file(s), nothing will happen
+   * to that/those file(s)
+       \param new_size The amount of bytes that each checkpoint-file must at least be able to contain.
+       \return 0 on success, -1 on error.
+      */
   int expand_file(std::size_t new_size){
     std::size_t size_w_counter = new_size + this->sizeof_counter;
     if(this->max_size_allowed() < size_w_counter){
@@ -236,7 +280,7 @@ public:
     }
     int fd;
     if(access(this->fileNameA.c_str(), R_OK | W_OK)){
-      this->cpt_perror("file not available, acess()");
+      this->cpt_perror("file not available, access()");
       return -1;
     }else{
       fd = open(this->fileNameA.c_str(), O_RDONLY | O_WRONLY);
@@ -314,10 +358,13 @@ public:
     this->closeFile(fd);
     return 0;
   }
-  
+
+  /*! \brief Opens the checkpoint-file which turn it is to become the newest checkpoint.
+         \return A Linux file descriptor on success, -1 on error.
+        */
   int save_checkpoint_fd(){
     if(access(this->oldest_save->c_str(), W_OK)){
-      this->cpt_printf("file not acessible");
+      this->cpt_printf("file not accessible");
       return -1;
     }
     
@@ -336,9 +383,12 @@ public:
       return -1;
     }
     return fd;
-    //
   }
 
+  /*! \brief Closes a checkpoint-file which should have been opened by save_checkpoint_fd().
+   \param fd A Linux file descriptor
+   \return 0 on success, -1 on error.
+  */
   int save_checkpoint_finalize_save(int fd){
     off_t seek_ret = lseek(fd, 0, SEEK_SET); 
     if(seek_ret == -1){

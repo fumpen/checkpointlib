@@ -1,14 +1,17 @@
+#include "gtest/gtest.h"
+
 #include "fileManagerTests.hpp"
 #include "firstFitTests.hpp"
 #include "memManagerTests.hpp"
 #include "checkpointTests.hpp"
 
-int main(){
-  runAllFileManagerTests();
-  runAllFirstFitTests();
-  
-  run_all_memManagerTests();
+int main(int argc, char **argv){
+	//runAllFileManagerTests();
+	//runAllFirstFitTests();
 
-  runAllCheckpointManagerTests();
-  return 0;
+	//run_all_memManagerTests();
+
+	//runAllCheckpointManagerTests();
+	::testing::InitGoogleTest(&argc, argv);
+	return RUN_ALL_TESTS();
 }

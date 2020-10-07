@@ -8,7 +8,7 @@
 
 static std::vector<void*> vec_malloc;
 
-static std::string RET_SUCESS = "sucess";
+static std::string RET_SUCESS = "success";
 
 static std::uint8_t ff_alloc_size = sizeof(std::size_t) + 1;
 static std::size_t _page_size = sysconf(_SC_PAGESIZE);
