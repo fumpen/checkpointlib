@@ -8,14 +8,17 @@ time = [345844, 650710, 977148, 1472321, 1805524, 2007440, 2242450, 2564095, 308
 
 time = [x * 0.001 for x in time]
 print(time)
+
+plt.rcParams.update({'font.size': 22})
+
 # Make the plot
-plt.plot(mem_allocated, time, color='blue', label='application restart timer')
+plt.plot(mem_allocated, time, color='blue', marker='o', label='application restart timer')
 
  
 plt.xlabel('memory saved (in bytes)', fontweight='bold')
 plt.ylabel('total time to completion (in milliseconds)', fontweight='bold')
 plt.title("Application restart with checkpoint memory of increasing size")
 # Create legend & Show graphic
-plt.legend(bbox_to_anchor=(0.2,0.9))
+plt.legend(bbox_to_anchor=(0.4,0.9))
 plt.show()
 

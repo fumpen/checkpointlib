@@ -48,7 +48,7 @@ int main(){
   myfile << "Stating new speedtest benchmarks.\n";
   myfile.close();
 
-  std::size_t test_repetitions = 100;
+  std::size_t test_repetitions = 1000;
   std::size_t allocation_size = 100000;
   unsigned int threadTotal = 4;
   unsigned long int iterations = 1000000;

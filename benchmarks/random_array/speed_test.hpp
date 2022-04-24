@@ -11,8 +11,15 @@
 #include <thread>
 #include <iostream>
 #include <time.h>
+#include <chrono>
 
-
+std::string name_cptFile(std::string addMe){
+  auto time_stamp = std::chrono::system_clock::now();
+  char tmp_filename[200];
+  snprintf(tmp_filename, 200, "/home/frederik/tmp_checkpoints/%lu",
+	   std::chrono::duration_cast<std::chrono::seconds>(time_stamp.time_since_epoch()).count());
+  return std::string(tmp_filename) + addMe;
+}
 
 struct test_thread_struct{
   arrTestDat _arrTest;
@@ -109,8 +116,8 @@ void array_test_control(void* data){
 std::size_t test_array_scramble_normal(unsigned int rep){
   srand(time(NULL));
   bool load_first = false;
-  std::string LABEL1 = "testFile_1.tmp";
-  std::string LABEL2 = "testFile_2.tmp";
+  std::string LABEL1 = name_cptFile("testFile_1.tmp");
+  std::string LABEL2 = name_cptFile("testFile_2.tmp");
 
   unsigned int threadTotal = 4;
   const std::size_t segment = 200000;

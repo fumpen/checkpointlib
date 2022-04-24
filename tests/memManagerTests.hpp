@@ -16,23 +16,27 @@
 #include <errno.h>
 #include <string.h>
 
-std::string mm_cleanup_test(std::string msg){
-  _delete_test_files(LABEL1, LABEL2);
-  return cleanup_test(msg);
-}
 
-std::string test0_make_memManager_instance(){
+class MemoryManagerTests : public ::testing::Test {
+protected:
+  
+  //void SetUp() override {}
+
+  void TearDown() override {
+    _delete_test_files(LABEL1, LABEL2);
+    cleanup_test(RET_SUCESS);
+    
+  }
+};
+
+TEST_F(MemoryManagerTests, test0_make_memManager_instance){
   size_t memSize = 200;
   MemManager mm(LABEL1, LABEL2);
-  if(mm.initMemManager(memSize))
-    return mm_cleanup_test("mm.initMemManager(memSize)"); 
-    
-  _delete_test_files(LABEL1, LABEL2);
-  return mm_cleanup_test(RET_SUCESS);
+  ASSERT_FALSE(mm.initMemManager(memSize)); 
 }
 
 
-std::string test1_allocate_MM(){
+TEST_F(MemoryManagerTests, test1_allocate_MM){
   // alloc only one page
   size_t memSize = round_up_page(1); 
   //dividing free mem into 2 allocation chunks, firstfit datastructure included, as to fill the allocated memory completely
@@ -43,42 +47,36 @@ std::string test1_allocate_MM(){
   alloc_2 -= ff_alloc_size;
 
   MemManager mm(LABEL1, LABEL2);
-  if(mm.initMemManager(memSize))
-    return mm_cleanup_test("mm.initMemManager(memSize)"); 
+  ASSERT_FALSE(mm.initMemManager(memSize)); 
   void* p1 = mm.allocate_memory(alloc_1);
-  if(p1 == 0) return mm_cleanup_test("p1 == 0");
+  ASSERT_FALSE(p1 == 0);
 
   void* p2 = mm.allocate_memory(alloc_2 + 1);
-  if(p2 != 0) return mm_cleanup_test("p2 != 0");
+  ASSERT_FALSE(p2 != 0);
   p2 = mm.allocate_memory(alloc_2);
-  if(p2 == 0) return mm_cleanup_test("p2 == 0");
+  ASSERT_FALSE(p2 == 0);
 
-  return mm_cleanup_test(RET_SUCESS);
 }
 
-std::string test2_free_MM(){
+TEST_F(MemoryManagerTests, test2_free_MM){
   size_t memSize = 200;
   MemManager mm(LABEL1, LABEL2);
-  if(mm.initMemManager(memSize))
-    return mm_cleanup_test("mm.initMemManager(memSize)"); 
+  ASSERT_FALSE(mm.initMemManager(memSize)); 
   
   void* p1 = mm.allocate_memory(100);
   mm.allocate_memory(50);
-  if(mm.free_memory(p1))
-    return mm_cleanup_test("mm.free_memory(p1)");
+  ASSERT_FALSE(mm.free_memory(p1));
   p1 = mm.allocate_memory(100);
-  if(p1 == 0) return mm_cleanup_test("p1 == 0");
+  ASSERT_FALSE(p1 == 0);
 
-  return mm_cleanup_test(RET_SUCESS);
 }
 
-std::string test3_save_allocation(){
+TEST_F(MemoryManagerTests, test3_save_allocation){
   std::mutex memLock;
   std::uint8_t barrier = 1;
   size_t memSize = 20000;
   MemManager mm(LABEL1, LABEL2);
-  if(mm.initMemManager(memSize))
-    return mm_cleanup_test("mm.initMemManager(memSize)"); 
+  ASSERT_FALSE(mm.initMemManager(memSize)); 
   int numInts = 1000;
   int* p1 = (int*)mm.allocate_memory(numInts * sizeof(int));
   
@@ -95,33 +93,28 @@ std::string test3_save_allocation(){
   
   
   int fd = open(LABEL2.c_str(), O_RDONLY);
-  if(fd == -1) return mm_cleanup_test("fd == -1");
+  ASSERT_FALSE(fd == -1);
   
-  if(read(fd, fileContent, memSize) == -1)
-    return mm_cleanup_test("error in read");
+  ASSERT_FALSE(read(fd, fileContent, memSize) == -1);
   close(fd);
   
   // + sizeof(std::size_t) (file counter), + ff_alloc_size (size of single allocation)
   int* testInts = (int*) (((std::uint8_t*)fileContent) + ff_alloc_size + sizeof(std::size_t)); 
   for(int i=0; i<numInts; i++){
-    if(testInts[i] != (i * 2)){
-      return mm_cleanup_test("testInts[i] != (i * 2)");
-    }
+    ASSERT_FALSE(testInts[i] != (i * 2));
   }
-  
-  return mm_cleanup_test(RET_SUCESS);
+   
 }
 
 //size_t _page_size
-std::string test4_load_allocation(){
+TEST_F(MemoryManagerTests, test4_load_allocation){
   printf("asd4\n");
   std::mutex memLock;
   std::uint8_t barrier = 1;
   
   size_t memSize = 20000;
   MemManager mm(LABEL1, LABEL2);
-  if(mm.initMemManager(memSize))
-    return mm_cleanup_test("mm.initMemManager(memSize)"); 
+  ASSERT_FALSE(mm.initMemManager(memSize)); 
   int numInts = 2000;
   int* p1 = (int*)mm.allocate_memory(numInts * sizeof(int));
   
@@ -143,18 +136,15 @@ std::string test4_load_allocation(){
   memLock.unlock();
   
   for(int i=0; i<numInts; i++){
-    if(p1[i] != (i * 2)) return mm_cleanup_test("p1[i] != (i * 2)");
+    ASSERT_FALSE(p1[i] != (i * 2));
   }
 
-  if(th.joinable()){
-      th.join();
-    }else{
-      return mm_cleanup_test("th.joinable()");
-    }
-  return mm_cleanup_test(RET_SUCESS);
+  ASSERT_TRUE(th.joinable());
+  th.join();
+     
 }
 
-std::string test5_visual_confirmation_that_signalcatching_is_working(){
+TEST_F(MemoryManagerTests, test5_visual_confirmation_that_signalcatching_is_working){
   std::mutex memLock;
   std::uint8_t barrier = 1;
   
@@ -163,8 +153,7 @@ std::string test5_visual_confirmation_that_signalcatching_is_working(){
   size_t memSize = (alloc_size + ff_alloc_size) * number_of_allocations + 1000; //leave a couple of pages pr allocation
   
   MemManager mm(LABEL1, LABEL2);
-  if(mm.initMemManager(memSize))
-    return mm_cleanup_test("mm.initMemManager(memSize)"); 
+  ASSERT_FALSE(mm.initMemManager(memSize)); 
   std::vector<void*> allocations;
   for(int i=0; i<number_of_allocations; i++){
     allocations.push_back(mm.allocate_memory(alloc_size));
@@ -187,46 +176,38 @@ std::string test5_visual_confirmation_that_signalcatching_is_working(){
     printf("wrote to alloc number %d (reverse order)\n", i);
   }
 
-  if(th1.joinable()){
-      th1.join();
-    }else{
-      return mm_cleanup_test("th1.joinable()");
-    }
+  ASSERT_TRUE(th1.joinable());
+  th1.join();
+    
   
-  if(th2.joinable()){
-      th2.join();
-    }else{
-      return mm_cleanup_test("th2.joinable()");
-    }
-  return mm_cleanup_test(RET_SUCESS);
+  ASSERT_TRUE(th2.joinable());
+  th2.join();
 }
 
 
 //size_t _page_size
-std::string test6_save_allocation_advanced(){
+TEST_F(MemoryManagerTests, test6_save_allocation_advanced){
   std::mutex memLock;
   std::uint8_t barrier = 1;
   
   size_t memSize = round_up_page(10000);
   size_t string_length = memSize - ff_alloc_size;
   MemManager mm(LABEL1, LABEL2);
-  if(mm.initMemManager(memSize))
-    return mm_cleanup_test("mm.initMemManager(memSize)"); 
+  ASSERT_FALSE(mm.initMemManager(memSize)); 
   
   char* allocated_pointer = (char*)mm.allocate_memory(string_length);
-  if(allocated_pointer == 0) return mm_cleanup_test("allocated_pointer == 0");
+  ASSERT_FALSE(allocated_pointer == 0);
 
   char* validation_buff = (char*)malloc(string_length);
   vec_malloc.push_back(validation_buff);
-  if(validation_buff == 0) return mm_cleanup_test("validation_buff == 0");
+  ASSERT_FALSE(validation_buff == 0);
   
   for(size_t i=0; i<string_length; i++){
     memcpy(&allocated_pointer[i], &i, 1);
     memcpy(&validation_buff[i], &i, 1);
   }
   
-  if(memcmp(allocated_pointer, validation_buff, string_length))
-    return mm_cleanup_test("[1]memcmp(allocated_pointer, validation_buff, string_length)");
+  ASSERT_FALSE(memcmp(allocated_pointer, validation_buff, string_length));
 
   std::thread th = mm.start_save_checkpoint(&memLock, &barrier);
   while(barrier){}
@@ -236,20 +217,15 @@ std::string test6_save_allocation_advanced(){
   mm.start_load_checkpoint();
   memLock.unlock();
 
-  if(memcmp(allocated_pointer, validation_buff, string_length) != 0)
-    return mm_cleanup_test("[2]memcmp(allocated_pointer, validation_buff, string_length)");
+  ASSERT_FALSE(memcmp(allocated_pointer, validation_buff, string_length) != 0);
 
 
-  if(th.joinable()){
-    th.join();
-  }else{
-    return mm_cleanup_test("th1.joinable()");
-  }
-  return mm_cleanup_test(RET_SUCESS);
+  ASSERT_TRUE(th.joinable());
+  th.join();
 }
 
 
-std::string test7_load_allocation_advanced(){
+TEST_F(MemoryManagerTests, test7_load_allocation_advanced){
   // continuation of test 6..
   std::mutex memLock;
   std::uint8_t barrier = 1;
@@ -257,23 +233,21 @@ std::string test7_load_allocation_advanced(){
   size_t memSize = round_up_page(10000);
   size_t string_length = memSize - ff_alloc_size;
   MemManager mm(LABEL1, LABEL2);
-  if(mm.initMemManager(memSize))
-    return mm_cleanup_test("mm.initMemManager(memSize)"); 
+  ASSERT_FALSE(mm.initMemManager(memSize)); 
   
   char* p = (char*)mm.allocate_memory(string_length);
-  if(p == 0) return mm_cleanup_test("p == 0");
+  ASSERT_FALSE(p == 0);
 
   char* validation_buff = (char*)malloc(string_length);
   vec_malloc.push_back(validation_buff);
-  if(validation_buff == 0) return mm_cleanup_test("validation_buff == 0");
+  ASSERT_FALSE(validation_buff == 0);
   
   for(size_t i=0; i<string_length; i++){
     memcpy(&p[i], &i, 1);
     memcpy(&validation_buff[i], &i, 1);
   }
   
-  if(memcmp(p, validation_buff, string_length) != 0)
-    return mm_cleanup_test("[1]memcmp(p, validation_buff, string_length) != 0");
+  ASSERT_FALSE(memcmp(p, validation_buff, string_length) != 0);
 
   std::thread th = mm.start_save_checkpoint(&memLock, &barrier);
   while(barrier){}
@@ -283,42 +257,36 @@ std::string test7_load_allocation_advanced(){
   for(size_t i=0; i<string_length; i++){
     memcpy(&p[i], &tmp_dat, 1);
   }
-  if(memcmp(p, validation_buff, string_length) == 0)
-    return mm_cleanup_test("memcmp(p, validation_buff, string_length) == 0");
+  ASSERT_FALSE(memcmp(p, validation_buff, string_length) == 0);
   
   barrier = 1;
   memLock.lock();
   mm.start_load_checkpoint();
   memLock.unlock();
   
-  if(memcmp(p, validation_buff, string_length) != 0)
-    return mm_cleanup_test("[2]memcmp(p, validation_buff, string_length) != 0");
+  ASSERT_FALSE(memcmp(p, validation_buff, string_length) != 0);
 
-  if(th.joinable()){
-    th.join();
-  }else{
-    return mm_cleanup_test("th1.joinable()");
-  }
-  return mm_cleanup_test(RET_SUCESS);
+  ASSERT_TRUE(th.joinable());
+  th.join();
+   
 }
 
 
-std::string test8_final(){
+TEST_F(MemoryManagerTests, test8_final){
   std::mutex memLock;
   std::uint8_t barrier = 1;
   
   size_t memSize = round_up_page(10000);
   size_t string_length = memSize - ff_alloc_size;
   MemManager mm(LABEL1, LABEL2);
-  if(mm.initMemManager(memSize))
-    return mm_cleanup_test("mm.initMemManager(memSize)"); 
+  ASSERT_FALSE(mm.initMemManager(memSize)); 
   
   char* p = (char*)mm.allocate_memory(string_length);
-  if(p == 0) return mm_cleanup_test("p == 0");
+  ASSERT_FALSE(p == 0);
 
   char* validation_buff = (char*)malloc(string_length);
   vec_malloc.push_back(validation_buff);
-  if(validation_buff == 0) return mm_cleanup_test("validation_buff == 0");
+  ASSERT_FALSE(validation_buff == 0);
   
   for(size_t i=0; i<string_length; i++){
     memcpy(&p[i], &i, 1);
@@ -344,30 +312,23 @@ std::string test8_final(){
   for(size_t i=0; i<string_length; i++){
     memcpy(&p[i], &tmp_val, 1);
   }
-  if(memcmp(p, validation_buff, string_length) == 0)
-    return mm_cleanup_test("memcmp(p, validation_buff, string_length) == 0");
+  ASSERT_FALSE(memcmp(p, validation_buff, string_length) == 0);
   
   barrier = 1;
   memLock.lock();
   mm.start_load_checkpoint();
   memLock.unlock();
   
-  if(memcmp(p, validation_buff, string_length) != 0)
-    return mm_cleanup_test("[2]memcmp(p, validation_buff, string_length) != 0");
+  ASSERT_FALSE(memcmp(p, validation_buff, string_length) != 0);
 
-  if(th1.joinable()){
-    th1.join();
-  }else{
-    return mm_cleanup_test("th1.joinable()");
-  }
-  if(th2.joinable()){
-    th2.join();
-  }else{
-    return mm_cleanup_test("th2.joinable()");
-  }
-  return mm_cleanup_test(RET_SUCESS);
+  ASSERT_TRUE(th1.joinable());
+  th1.join();
+
+  ASSERT_TRUE(th2.joinable());
+  th2.join();
 }
 
+  /*
 int run_all_memManagerTests(){
   std::vector<std::string> test_results;
   std::cout << "\n--- Initiating memManager tests: --- \n";
@@ -419,7 +380,8 @@ int run_all_memManagerTests(){
   
   return 0;
 }
-
+  */
+  
 #endif //MEMMANAGERTESTS_HPP
 
 

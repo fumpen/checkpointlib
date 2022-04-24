@@ -10,27 +10,30 @@
 #include <stdio.h>
 #include <thread>
 
-std::string cpt_return(std::string ret_msg){
-  _delete_test_files(LABEL1, LABEL2);
-  return ret_msg;
-}
 
-std::string cpt_return(std::string ret_msg, CheckpointOrganizer* del_me_plz){
-  delete del_me_plz;
-  _delete_test_files(LABEL1 , LABEL2);
-  return ret_msg;
-}
+class CheckpointOrganizerTests : public ::testing::Test {
+protected:
+  CheckpointOrganizer* checkOrgCleanupRef = nullptr;
+  //void SetUp() override {}
 
-std::string test0_create_checkpointManager(){
+  void TearDown() override {
+    if(checkOrgCleanupRef == nullptr){
+      _delete_test_files(LABEL1, LABEL2);
+    }else{ 
+      delete checkOrgCleanupRef; 
+      _delete_test_files(LABEL1 , LABEL2);
+    }
+  }
+};
+
+
+TEST_F(CheckpointOrganizerTests, test0_create_checkpointManager){
   uint8_t threadTotal = 1;
   bool load_first = false;
   std::size_t alloc_size = 2000;
   CheckpointOrganizer checkOrg(LABEL1, LABEL2);
 
-  if(checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size))
-    return cpt_return("checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size)");
-  
-  return cpt_return(RET_SUCESS);
+  ASSERT_FALSE(checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size));
 }
 
 void _test1_f(void* data, Checkpoint* chkpt){
@@ -39,25 +42,20 @@ void _test1_f(void* data, Checkpoint* chkpt){
   printf("hey, function where nothing happens was called\n");
 }
 
-std::string test1_start_single_thread(){
+TEST_F(CheckpointOrganizerTests, test1_start_single_thread){
   uint8_t threadTotal = 1;
   bool load_first = false;
   std::size_t alloc_size = 2000;
   CheckpointOrganizer checkOrg(LABEL1, LABEL2);
-  if(checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size))
-    return cpt_return("checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size)");
+  ASSERT_FALSE(checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size));
 
   void (*test_func)(void *, Checkpoint*) = _test1_f;
 
   int test_dat1 = 1;
   std::thread* t1 = checkOrg.startThread(test_func, &test_dat1);
-  if(t1->joinable()){
-    t1->join();
-  }else{
-    return cpt_return("t1->joinable()");
-  } 
-  
-  return cpt_return(RET_SUCESS);
+  ASSERT_TRUE(t1->joinable());
+  t1->join();
+
 }
 
 
@@ -67,13 +65,12 @@ void  _test2_f(void* data, Checkpoint* chkpt){
   for(unsigned int i=0; i< 10000000; i++){}
 }
 
-std::string test2_start_many_threads(){
+TEST_F(CheckpointOrganizerTests, test2_start_many_threads){
   uint8_t threadTotal = 4;
   bool load_first = false;
   std::size_t alloc_size = 2000;
   CheckpointOrganizer checkOrg(LABEL1, LABEL2);
-  if(checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size))
-    return cpt_return("checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size)");
+  ASSERT_FALSE(checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size));
   
   void (*test_func)(void *, Checkpoint*) = _test2_f;
 
@@ -90,12 +87,11 @@ std::string test2_start_many_threads(){
   checkOrg.startThread(test_func, &test_dat4);
   
   checkOrg.joinAll();
-  if(test_dat1) return cpt_return("test_dat1");
-  if(test_dat2) return cpt_return("test_dat2");
-  if(test_dat3) return cpt_return("test_dat3");
-  if(test_dat4) return cpt_return("test_dat4");
-
-  return cpt_return(RET_SUCESS);
+  ASSERT_FALSE(test_dat1);
+  ASSERT_FALSE(test_dat2);
+  ASSERT_FALSE(test_dat3);
+  ASSERT_FALSE(test_dat4);
+ 
 }
 
 void  _test3_f(void* data, Checkpoint* chkpt){
@@ -107,13 +103,12 @@ void  _test3_f(void* data, Checkpoint* chkpt){
   }
 }
 
-std::string test3_start_threads_with_checkpoint_save(){
+TEST_F(CheckpointOrganizerTests, test3_start_threads_with_checkpoint_save){
   uint8_t threadTotal = 4;
   bool load_first = false;
   std::size_t alloc_size = 2000;
   CheckpointOrganizer checkOrg(LABEL1, LABEL2);
-  if(checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size))
-    return cpt_return("checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size)");
+  ASSERT_FALSE(checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size));
   
   void (*test_func)(void *, Checkpoint*) = _test3_f;
 
@@ -131,12 +126,11 @@ std::string test3_start_threads_with_checkpoint_save(){
 
   
   checkOrg.joinAll();
-  if(*test_dat1 != 99999) return cpt_return("*test_dat1 != 9999999");
-  if(*test_dat2 != 99999) return cpt_return("*test_dat2 != 9999999");
-  if(*test_dat3 != 99999) return cpt_return("*test_dat3 != 9999999");
-  if(*test_dat4 != 99999) return cpt_return("*test_dat4 != 9999999");
+  ASSERT_FALSE(*test_dat1 != 99999);
+  ASSERT_FALSE(*test_dat2 != 99999);
+  ASSERT_FALSE(*test_dat3 != 99999);
+  ASSERT_FALSE(*test_dat4 != 99999);
   
-  return cpt_return(RET_SUCESS);
 }
 
 
@@ -157,7 +151,7 @@ void  _test4_f(void* data, Checkpoint* chkpt){
 
 
 
-std::string test4_start_threads_with_checkpoint_save_and_load(){
+TEST_F(CheckpointOrganizerTests, test4_start_threads_with_checkpoint_save_and_load){
   uint8_t threadTotal = 4;
   bool load_first = false;
 
@@ -165,19 +159,19 @@ std::string test4_start_threads_with_checkpoint_save_and_load(){
   std::size_t alloc_size = (each_allocatioin + ff_alloc_size) *
     threadTotal + 9;
   CheckpointOrganizer* checkOrg = new CheckpointOrganizer(LABEL1, LABEL2);
-  if(checkOrg->initCheckpointOrganizer(threadTotal, load_first, alloc_size))
-    return cpt_return("checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size)");
+  checkOrgCleanupRef = checkOrg;
+  ASSERT_FALSE(checkOrg->initCheckpointOrganizer(threadTotal, load_first, alloc_size));
 
   void (*test_func)(void *, Checkpoint*) = _test4_f;
 
   void* test_dat1 = checkOrg->check_alloc(each_allocatioin);
-  if(test_dat1 == 0) cpt_return("test_dat1 == 0", checkOrg);
+  ASSERT_FALSE(test_dat1 == 0);
   void* test_dat2 = checkOrg->check_alloc(each_allocatioin);
-  if(test_dat2 == 0) cpt_return("test_dat2 == 0", checkOrg);
+  ASSERT_FALSE(test_dat2 == 0);
   void* test_dat3 = checkOrg->check_alloc(each_allocatioin);
-  if(test_dat3 == 0) cpt_return("test_dat3 == 0", checkOrg);
+  ASSERT_FALSE(test_dat3 == 0);
   void* test_dat4 = checkOrg->check_alloc(each_allocatioin);
-  if(test_dat4 == 0) cpt_return("test_dat4 == 0", checkOrg);
+  ASSERT_FALSE(test_dat4 == 0);
   
   checkOrg->startThread(test_func, test_dat1);
   checkOrg->startThread(test_func, test_dat2);
@@ -188,41 +182,33 @@ std::string test4_start_threads_with_checkpoint_save_and_load(){
   unsigned int test5iterations = 10000;
   unsigned int test5checkpoint_calls = 10; 
 
-  if(*((unsigned int*) test_dat1) != test5iterations)
-    return cpt_return("*((unsigned int*) test_dat1) != test5iterations", checkOrg);
-  if(*((unsigned int*) test_dat2) != test5iterations)
-    return cpt_return("*((unsigned int*) test_dat2) != test5iterations", checkOrg);
-  if(*((unsigned int*) test_dat3) != test5iterations)
-    return cpt_return("*((unsigned int*) test_dat3) != test5iterations", checkOrg);
-  if(*((unsigned int*) test_dat4) != test5iterations)
-    return cpt_return("*((unsigned int*) test_dat4) != test5iterations", checkOrg);
+  ASSERT_FALSE(*((unsigned int*) test_dat1) != test5iterations);
+  ASSERT_FALSE(*((unsigned int*) test_dat2) != test5iterations);
+  ASSERT_FALSE(*((unsigned int*) test_dat3) != test5iterations);
+  ASSERT_FALSE(*((unsigned int*) test_dat4) != test5iterations);
   
-  if(*((unsigned int*)(((uint8_t*) test_dat1) + sizeof(unsigned int))) != test5checkpoint_calls)
-    return cpt_return("[1]*((unsigned int*)(((uint8_t*) test_dat1) + sizeof(unsigned int))) != test5checkpoint_calls", checkOrg);
-  if(*((unsigned int*)(((uint8_t*) test_dat2) + sizeof(unsigned int))) != test5checkpoint_calls)
-    return cpt_return("*((unsigned int*)(((uint8_t*) test_dat2) + sizeof(unsigned int))) != test5checkpoint_calls", checkOrg);
-  if(*((unsigned int*)(((uint8_t*) test_dat3) + sizeof(unsigned int))) != test5checkpoint_calls)
-    return cpt_return("*((unsigned int*)(((uint8_t*) test_dat3) + sizeof(unsigned int))) != test5checkpoint_calls", checkOrg);
-  if(*((unsigned int*)(((uint8_t*) test_dat4) + sizeof(unsigned int))) != test5checkpoint_calls)
-    return cpt_return("*((unsigned int*)(((uint8_t*) test_dat4) + sizeof(unsigned int))) != test5checkpoint_calls", checkOrg);
+  ASSERT_FALSE(*((unsigned int*)(((uint8_t*) test_dat1) + sizeof(unsigned int))) != test5checkpoint_calls);
+  ASSERT_FALSE(*((unsigned int*)(((uint8_t*) test_dat2) + sizeof(unsigned int))) != test5checkpoint_calls);
+  ASSERT_FALSE(*((unsigned int*)(((uint8_t*) test_dat3) + sizeof(unsigned int))) != test5checkpoint_calls);
+  ASSERT_FALSE(*((unsigned int*)(((uint8_t*) test_dat4) + sizeof(unsigned int))) != test5checkpoint_calls);
 
   delete checkOrg;
 
 
   // loading instead!
   CheckpointOrganizer* checkOrg2 = new CheckpointOrganizer(LABEL1, LABEL2);
-  if(checkOrg2->initCheckpointOrganizer(threadTotal, true, alloc_size))
-    return cpt_return("checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size)");
+  checkOrgCleanupRef = checkOrg2;
+  ASSERT_FALSE(checkOrg2->initCheckpointOrganizer(threadTotal, true, alloc_size));
   
   
   test_dat1 = checkOrg2->check_alloc(each_allocatioin);
-  if(test_dat1 == 0) return cpt_return("test_dat1 == 0", checkOrg2);
+  ASSERT_FALSE(test_dat1 == 0);
   test_dat2 = checkOrg2->check_alloc(each_allocatioin);
-  if(test_dat2 == 0) return cpt_return("test_dat2 == 0", checkOrg2);
+  ASSERT_FALSE(test_dat2 == 0);
   test_dat3 = checkOrg2->check_alloc(each_allocatioin);
-  if(test_dat3 == 0) return cpt_return("test_dat3 == 0", checkOrg2);
+  ASSERT_FALSE(test_dat3 == 0);
   test_dat4 = checkOrg2->check_alloc(each_allocatioin);
-  if(test_dat4 == 0) return cpt_return("test_dat4 == 0", checkOrg2);
+  ASSERT_FALSE(test_dat4 == 0);
   
   checkOrg2->startThread(test_func, test_dat1);
   checkOrg2->startThread(test_func, test_dat2);
@@ -232,28 +218,18 @@ std::string test4_start_threads_with_checkpoint_save_and_load(){
   checkOrg2->joinAll();
 
   test5checkpoint_calls = 1; // NOTE that only one is expected, because were resuming at the end of the loop!!! 
-  if(*((unsigned int*) test_dat1) != test5iterations)
-    return cpt_return("[2]*((unsigned int*) test_dat1) != test5iterations", checkOrg2);
-  if(*((unsigned int*) test_dat2) != test5iterations)
-    return cpt_return("*((unsigned int*) test_dat2) != test5iterations", checkOrg2);
-  if(*((unsigned int*) test_dat3) != test5iterations)
-    return cpt_return("*((unsigned int*) test_dat3) != test5iterations", checkOrg2);
-  if(*((unsigned int*) test_dat4) != test5iterations)
-    return cpt_return("*((unsigned int*) test_dat4) != test5iterations", checkOrg2);
+  ASSERT_FALSE(*((unsigned int*) test_dat1) != test5iterations);
+  ASSERT_FALSE(*((unsigned int*) test_dat2) != test5iterations);
+  ASSERT_FALSE(*((unsigned int*) test_dat3) != test5iterations);
+  ASSERT_FALSE(*((unsigned int*) test_dat4) != test5iterations);
   
   
 
-  if(*((unsigned int*)(((uint8_t*) test_dat1) + sizeof(unsigned int))) != test5checkpoint_calls)
-    return cpt_return("*((unsigned int*)(((uint8_t*) test_dat1) + sizeof(unsigned int))) != test5checkpoint_calls", checkOrg2);
-  if(*((unsigned int*)(((uint8_t*) test_dat2) + sizeof(unsigned int))) != test5checkpoint_calls)
-    return cpt_return("*((unsigned int*)(((uint8_t*) test_dat2) + sizeof(unsigned int))) != test5checkpoint_calls", checkOrg2);
-  if(*((unsigned int*)(((uint8_t*) test_dat3) + sizeof(unsigned int))) != test5checkpoint_calls)
-    return cpt_return("*((unsigned int*)(((uint8_t*) test_dat3) + sizeof(unsigned int))) != test5checkpoint_calls", checkOrg2);
-  if(*((unsigned int*)(((uint8_t*) test_dat4) + sizeof(unsigned int))) != test5checkpoint_calls)
-    return cpt_return("*((unsigned int*)(((uint8_t*) test_dat4) + sizeof(unsigned int))) != test5checkpoint_calls", checkOrg2);
+  ASSERT_FALSE(*((unsigned int*)(((uint8_t*) test_dat1) + sizeof(unsigned int))) != test5checkpoint_calls);
+  ASSERT_FALSE(*((unsigned int*)(((uint8_t*) test_dat2) + sizeof(unsigned int))) != test5checkpoint_calls);
+  ASSERT_FALSE(*((unsigned int*)(((uint8_t*) test_dat3) + sizeof(unsigned int))) != test5checkpoint_calls);
+  ASSERT_FALSE(*((unsigned int*)(((uint8_t*) test_dat4) + sizeof(unsigned int))) != test5checkpoint_calls);
  
-  
-  return cpt_return(RET_SUCESS, checkOrg2);
 }
 
 
@@ -285,21 +261,21 @@ void  _test5_count_down_f(void* data, Checkpoint* chkpt){
   }
 }
 
-std::string test5_visual_check_memprot_works(){
+TEST_F(CheckpointOrganizerTests, test5_visual_check_memprot_works){
   uint8_t threadTotal = 4;
   bool load_first = false;
 
   std::size_t alloc_size = 1000000;
   std::size_t each_alloc = alloc_size - 50;
   CheckpointOrganizer* checkOrg = new CheckpointOrganizer(LABEL1, LABEL2);
-  if(checkOrg->initCheckpointOrganizer(threadTotal, load_first, alloc_size))
-    return cpt_return("checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size)");
+  checkOrgCleanupRef = checkOrg;
+  ASSERT_FALSE(checkOrg->initCheckpointOrganizer(threadTotal, load_first, alloc_size));
 
   void (*test_func)(void *, Checkpoint*) = _test5_count_up_f;
 
   test5Dat test_dat;
   void* test_mem = checkOrg->check_alloc(each_alloc);
-  if(test_mem == 0) cpt_return("test_mem == 0", checkOrg);
+  ASSERT_FALSE(test_mem == 0);
 
   test_dat.iterations = each_alloc;
   test_dat.step = 90000;
@@ -318,13 +294,13 @@ std::string test5_visual_check_memprot_works(){
   delete checkOrg;
 
   CheckpointOrganizer* checkOrg2 = new CheckpointOrganizer(LABEL1, LABEL2);
-  if(checkOrg->initCheckpointOrganizer(threadTotal, load_first, alloc_size))
-    return cpt_return("checkOrg.initCheckpointOrganizer(threadTotal, load_first, alloc_size)");
+  checkOrgCleanupRef = checkOrg2;
+  ASSERT_FALSE(checkOrg->initCheckpointOrganizer(threadTotal, load_first, alloc_size));
 
   test_func = _test5_count_down_f;
 
   test_mem = checkOrg2->check_alloc(each_alloc);
-  if(test_mem == 0) cpt_return("test_mem == 0", checkOrg);
+  ASSERT_FALSE(test_mem == 0);
 
   test_dat.iterations = each_alloc;
   test_dat.mem = (char*)test_mem;
@@ -338,38 +314,8 @@ std::string test5_visual_check_memprot_works(){
   checkOrg->startThread(test_func, &test_dat);
   
   checkOrg->joinAll();
-  
-  return cpt_return(RET_SUCESS, checkOrg2);
+   
 }
-
-//tests return 0 on fail and 1 on sucess
-void runAllCheckpointManagerTests(){
-  std::vector<std::string> test_results;
-  std::cout << "\n--- Initiating Checkpoint(manager) tests: --- \n";
-  
-  cleanup_test(" ");
-  cpt_return(" ");
-  try{
-    std::string tmp_res = test0_create_checkpointManager();
-    test_results.push_back(tmp_res);
-  }catch(...){
-    test_results.push_back("test0_create_checkpointManager");
-  }
-  test_results.push_back(test1_start_single_thread());
-  test_results.push_back(test2_start_many_threads());
-  test_results.push_back(test3_start_threads_with_checkpoint_save());
-  test_results.push_back(test4_start_threads_with_checkpoint_save_and_load());
-  test_results.push_back(test5_visual_check_memprot_works());
-  std::cout << "\n--- Checkpoint(manager) test results: --- \n";
-  for(std::size_t i=0; i<test_results.size(); i++){
-    if(RET_SUCESS.compare(test_results[i])){
-      std::cout << "test " << i << " finished with: '" << "ERROR -> " + test_results[i] << "' \n";
-    }else{
-      std::cout << "test " << i << " finished with: '" << test_results[i] << "' \n";
-    }
-  }
-  std::cout << "\n--- finished with Checkpoint(manager) tests --- \n";
-}
-
+ 
 
 #endif //CHECKPOINTTESTS_HPP
